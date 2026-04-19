@@ -128,6 +128,7 @@ export function DashboardApp() {
   const [selectedFindingId, setSelectedFindingId] = useState<string | null>(null);
   const [locusRuntimeStatus, setLocusRuntimeStatus] = useState<LocusRuntimeStatus | null>(null);
   const [isRefreshingLocus, setIsRefreshingLocus] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const analysis: AnalysisResult | null = transactions.length > 0 ? analyzeTransactions(transactions) : null;
   const locusPlan: LocusPlan | null = analysis ? buildLocusPlan(analysis.findings, analysis.summary, locusRuntimeStatus) : null;
@@ -167,6 +168,7 @@ export function DashboardApp() {
 
   async function refreshLocusStatus() {
     setIsRefreshingLocus(true);
+    setErrorMessage(null);
     try {
       const response = await fetch("/api/locus/status", { cache: "no-store" });
       if (!response.ok) {
@@ -179,13 +181,32 @@ export function DashboardApp() {
           wrappedApiCatalogReachable: false,
           x402CatalogReachable: false,
           appsMarkdownReachable: false,
+          buildWithLocusAvailable: false,
+          hireWithLocusAvailable: false,
           message: "Unable to reach Locus status route. Running in simulation mode.",
           lastCheckedAt: new Date().toISOString()
         });
+        setErrorMessage("Unable to refresh Locus status. Running in simulation mode.");
         return;
       }
       const payload = (await response.json()) as LocusRuntimeStatus;
       setLocusRuntimeStatus(payload);
+    } catch {
+      setLocusRuntimeStatus({
+        connected: false,
+        mode: "simulation",
+        environment: "unknown",
+        balanceUsdc: null,
+        walletAddress: null,
+        wrappedApiCatalogReachable: false,
+        x402CatalogReachable: false,
+        appsMarkdownReachable: false,
+        buildWithLocusAvailable: false,
+        hireWithLocusAvailable: false,
+        message: "Locus status refresh failed. Running in simulation mode.",
+        lastCheckedAt: new Date().toISOString()
+      });
+      setErrorMessage("Failed to refresh Locus status.");
     } finally {
       setIsRefreshingLocus(false);
     }
@@ -194,14 +215,20 @@ export function DashboardApp() {
   async function loadSampleData() {
     setIsLoadingSample(true);
     setStrategy(null);
+    setErrorMessage(null);
     try {
       const response = await fetch("/data/seed-startup-spend.csv", { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error("Sample data request failed");
+      }
       const csvText = await response.text();
       const parsed = parseTransactionsCsv(csvText);
       startTransition(() => {
         setTransactions(parsed);
         setExplanations({});
       });
+    } catch {
+      setErrorMessage("Unable to load sample CSV.");
     } finally {
       setIsLoadingSample(false);
     }
@@ -210,18 +237,27 @@ export function DashboardApp() {
   async function handleFileUpload(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
-    const csvText = await file.text();
-    const parsed = parseTransactionsCsv(csvText);
-    startTransition(() => {
-      setTransactions(parsed);
-      setStrategy(null);
-      setExplanations({});
-    });
+
+    setErrorMessage(null);
+    try {
+      const csvText = await file.text();
+      const parsed = parseTransactionsCsv(csvText);
+      startTransition(() => {
+        setTransactions(parsed);
+        setStrategy(null);
+        setExplanations({});
+      });
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "CSV import failed.");
+    } finally {
+      event.target.value = "";
+    }
   }
 
   async function runStrategyAgent() {
     if (!analysis) return;
     setIsRunningStrategy(true);
+    setErrorMessage(null);
     try {
       const response = await fetch("/api/strategy", {
         method: "POST",
@@ -231,8 +267,19 @@ export function DashboardApp() {
           findings: analysis.findings
         })
       });
+
+      if (!response.ok) {
+        throw new Error("Strategy endpoint failed");
+      }
+
       const payload = (await response.json()) as StrategyResponse;
+      if (!payload || typeof payload.summary !== "string" || !Array.isArray(payload.top_opportunities)) {
+        throw new Error("Strategy payload malformed");
+      }
+
       setStrategy(payload);
+    } catch {
+      setErrorMessage("Unable to run Strategy Agent right now.");
     } finally {
       setIsRunningStrategy(false);
     }
@@ -242,14 +289,26 @@ export function DashboardApp() {
     if (!analysis || !selectedFinding) return;
     if (explanations[selectedFinding.id]) return;
     setIsExplaining(true);
+    setErrorMessage(null);
     try {
       const response = await fetch("/api/explain", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ summary: analysis.summary, finding: selectedFinding })
       });
+
+      if (!response.ok) {
+        throw new Error("Explain endpoint failed");
+      }
+
       const payload = (await response.json()) as ExplanationResponse;
+      if (!payload || typeof payload.explanation !== "string" || typeof payload.action_rationale !== "string") {
+        throw new Error("Malformed explanation response");
+      }
+
       setExplanations((current) => ({ ...current, [selectedFinding.id]: payload }));
+    } catch {
+      setErrorMessage("Unable to explain this finding right now.");
     } finally {
       setIsExplaining(false);
     }
@@ -319,6 +378,12 @@ export function DashboardApp() {
             </div>
           </div>
         </header>
+
+        {errorMessage ? (
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            {errorMessage}
+          </div>
+        ) : null}
 
         {!analysis || !locusPlan ? (
           <EmptyState
@@ -617,6 +682,14 @@ export function DashboardApp() {
                     {(locusRuntimeStatus?.mode || "simulation") === "live"
                       ? "Live Locus key detected: this build is wallet-connected, and high-cost actions still stay in guarded/pending mode."
                       : "Simulation mode: action payloads are prepared, but no live Locus key is available in this deployment."}
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
+                      {locusRuntimeStatus?.buildWithLocusAvailable ? "Build with Locus app detected" : "Build with Locus app not detected"}
+                    </span>
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
+                      {locusRuntimeStatus?.hireWithLocusAvailable ? "Hire with Locus app detected" : "Hire with Locus app not detected"}
+                    </span>
                   </div>
                 </div>
               </div>
