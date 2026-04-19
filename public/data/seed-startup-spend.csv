@@ -1,0 +1,16 @@
+id,date,merchant,description,category,amount,billing_period,cluster,usage_pct,last_used_days,price_change_pct,benchmark_monthly,contract_type,refund_candidate,renewal_date,status
+txn-001,2026-04-05,OpenAI API,Production LLM usage for chat features,ai,312,usage,ai,0.82,1,0.08,280,,false,,active
+txn-002,2026-04-06,Anthropic API,Backup reasoning and eval spend,ai,188,usage,ai,0.64,2,0.05,170,,false,,active
+txn-003,2026-04-12,Vercel Pro,Hosting and preview deployments,infra,224,monthly,infra,0.73,1,0.18,,,false,2026-05-12,active
+txn-004,2026-04-11,Datadog Logs,Annual monitoring contract with true-up included,observability,3600,annual,observability,0.68,4,0.00,210,annual_contract,false,2027-04-11,active
+txn-005,2026-04-02,PostHog Scale,Product analytics and feature flags,analytics,79,monthly,analytics,0.77,2,0.00,79,,false,2026-05-02,active
+txn-006,2026-04-03,Mixpanel Growth,Second analytics stack kept after migration,analytics,129,monthly,analytics,0.21,18,0.00,60,,false,2026-05-03,active
+txn-007,2026-04-03,Figma Professional,Primary design system and file editing,design,48,monthly,design,0.81,1,0.00,48,,false,2026-05-03,active
+txn-008,2026-04-04,Canva Teams,Marketing design seats no longer in active use,design,42,monthly,design,0.18,34,0.00,18,,false,2026-05-04,active
+txn-009,2026-04-07,Loom Business,Async video tool mostly unused after team change,video,96,monthly,video,0.12,41,0.00,24,,false,2026-05-07,active
+txn-010,2026-04-15,Framer Pro Annual,Site plan auto-renewed after light usage,website,348,annual,website,0.08,58,0.00,12,,true,2026-04-15,active
+txn-011,2026-04-08,Notion Plus,Workspace docs and planning,workspace,24,monthly,workspace,0.92,1,0.00,24,,false,2026-05-08,active
+txn-012,2026-04-09,Linear,Issue tracking and sprint planning,devtools,36,monthly,devtools,0.88,1,0.00,36,,false,2026-05-09,active
+txn-013,2026-04-10,Railway Usage,Background worker and internal jobs,infra,64,monthly,infra,0.55,3,0.12,50,,false,2026-05-10,active
+txn-014,2026-04-13,Miro,Old workshop board subscription,documentation,30,monthly,documentation,0.16,47,0.00,12,,false,2026-05-13,active
+txn-015,2026-04-14,HubSpot Starter,CRM tool retained after sales stack downsizing,crm,119,monthly,crm,0.62,7,0.00,59,,false,2026-05-14,active
