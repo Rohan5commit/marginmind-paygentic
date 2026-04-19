@@ -1,21 +1,14 @@
 # Team Info
 
 ## Members
-- Name:
-- Name:
-- Name:
+- Rohan Santhosh
 
 ## Roles
-- Product / Strategy:
-- Frontend / UX:
-- AI / Agent Systems:
-- Locus Integration:
-- Demo / Narrative:
+- Product / Strategy: Rohan Santhosh
+- Frontend / UX: Rohan Santhosh
+- AI / Agent Systems: Rohan Santhosh
+- Locus Integration: Rohan Santhosh
+- Demo / Narrative: Rohan Santhosh
 
 ## Contributions
-- Member:
-  - Contribution:
-- Member:
-  - Contribution:
-- Member:
-  - Contribution:
+- Rohan Santhosh: Built MarginMind end-to-end, including spend analysis logic, NVIDIA NIM strategy/explanation layer, Locus action integration, dashboard UX, docs, and deployment pipeline.
