@@ -12,6 +12,7 @@ jobs:
     env:
       VERCEL_ORG_ID: team_WXaTtgXKt64O2Q96QzmRXy5N
       VERCEL_PROJECT_ID: prj_pusHq7iRidXoO1eRLnXOXrciejRm
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,5 +34,3 @@ jobs:
 
       - name: Deploy to production
         run: vercel deploy --prebuilt --prod --token=$VERCEL_TOKEN
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
