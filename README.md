@@ -86,6 +86,8 @@ Only `NVIDIA_NIM_API_KEY` is needed for the live AI summary flow. The app still 
 
 The app is designed to build even if Locus keys are absent. In that case, MarginMind runs the Locus layer in an explicitly labeled simulation mode for judges.
 
+This repository also includes a GitHub Actions workflow at `.github/workflows/deploy-vercel.yml` so future pushes to `main` can redeploy the app to Vercel from GitHub.
+
 ## NVIDIA NIM Setup
 
 MarginMind uses NVIDIA NIM for:
