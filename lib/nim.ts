@@ -1,5 +1,5 @@
 import { buildFallbackExplanation, buildFallbackStrategy } from "@/lib/fallbacks";
-import { ExplanationResponse, Finding, StrategyResponse, SummaryMetrics } from "@/lib/types";
+import { ExplanationResponse, Finding, StrategyResponse, SummaryMetrics, Confidence } from "@/lib/types";
 
 const NIM_URL = "https://integrate.api.nvidia.com/v1/chat/completions";
 const DEFAULT_MODEL = "meta/llama-3.1-70b-instruct";
@@ -11,6 +11,33 @@ function extractJsonObject(raw: string): string {
   const end = raw.lastIndexOf("}");
   if (start >= 0 && end > start) return raw.slice(start, end + 1);
   return raw.trim();
+}
+
+function normalizeConfidence(value: unknown): Confidence | null {
+  if (value === "high" || value === "medium" || value === "low") return value;
+  if (typeof value === "number") {
+    if (value >= 85) return "high";
+    if (value >= 65) return "medium";
+    return "low";
+  }
+  if (typeof value === "string") {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) {
+      if (numeric >= 85) return "high";
+      if (numeric >= 65) return "medium";
+      return "low";
+    }
+  }
+  return null;
+}
+
+function normalizeNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
 }
 
 async function callNim(messages: Array<{ role: "system" | "user"; content: string }>, maxTokens: number): Promise<string> {
@@ -68,10 +95,10 @@ export async function runStrategyAgent(summary: SummaryMetrics, findings: Findin
   );
 
   const systemPrompt =
-    "You are a careful finance operations assistant. Be concise, specific, and skeptical. Never invent vendor behavior, unsupported savings, or fake certainty. Return valid JSON only with keys summary, top_opportunities, recommended_actions, estimated_monthly_savings, estimated_annual_savings, confidence.";
+    "You are a careful finance operations assistant. Be concise, specific, and skeptical. Never invent vendor behavior, unsupported savings, or fake certainty. Return valid JSON only with keys summary, top_opportunities, recommended_actions, estimated_monthly_savings, estimated_annual_savings, confidence. Confidence must be high, medium, or low.";
 
   const retryPrompt =
-    "Return JSON only. No markdown. No prose before or after the object. Keys must exactly match the requested schema.";
+    "Return JSON only. No markdown. No prose before or after the object. Keys must exactly match the requested schema. Confidence must be one of high, medium, or low.";
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
@@ -82,16 +109,27 @@ export async function runStrategyAgent(summary: SummaryMetrics, findings: Findin
         ],
         900
       );
-      const parsed = JSON.parse(extractJsonObject(content)) as StrategyResponse;
+      const parsed = JSON.parse(extractJsonObject(content)) as Record<string, unknown>;
+      const normalizedConfidence = normalizeConfidence(parsed.confidence);
+      const monthly = normalizeNumber(parsed.estimated_monthly_savings);
+      const annual = normalizeNumber(parsed.estimated_annual_savings);
+
       if (
         typeof parsed.summary === "string" &&
         Array.isArray(parsed.top_opportunities) &&
         Array.isArray(parsed.recommended_actions) &&
-        typeof parsed.estimated_monthly_savings === "number" &&
-        typeof parsed.estimated_annual_savings === "number" &&
-        (parsed.confidence === "high" || parsed.confidence === "medium" || parsed.confidence === "low")
+        monthly !== null &&
+        annual !== null &&
+        normalizedConfidence
       ) {
-        return parsed;
+        return {
+          summary: parsed.summary,
+          top_opportunities: parsed.top_opportunities.filter((item): item is string => typeof item === "string"),
+          recommended_actions: parsed.recommended_actions.filter((item): item is string => typeof item === "string"),
+          estimated_monthly_savings: monthly,
+          estimated_annual_savings: annual,
+          confidence: normalizedConfidence
+        };
       }
     } catch (error) {
       if (attempt === 1) {
@@ -106,7 +144,7 @@ export async function runStrategyAgent(summary: SummaryMetrics, findings: Findin
 export async function explainFindingWithNim(finding: Finding, summary: SummaryMetrics): Promise<ExplanationResponse> {
   const fallback = buildFallbackExplanation(finding);
   const systemPrompt =
-    "You are a careful finance operations assistant. Explain one finding in plain business language. Do not overclaim autonomy. Return valid JSON only with keys explanation, action_rationale, confidence.";
+    "You are a careful finance operations assistant. Explain one finding in plain business language. Do not overclaim autonomy. Return valid JSON only with keys explanation, action_rationale, confidence. Confidence must be high, medium, or low.";
   const retryPrompt =
     "Return JSON only. No markdown. Confidence must be high, medium, or low.";
 
@@ -139,13 +177,15 @@ export async function explainFindingWithNim(finding: Finding, summary: SummaryMe
         ],
         500
       );
-      const parsed = JSON.parse(extractJsonObject(content)) as ExplanationResponse;
-      if (
-        typeof parsed.explanation === "string" &&
-        typeof parsed.action_rationale === "string" &&
-        (parsed.confidence === "high" || parsed.confidence === "medium" || parsed.confidence === "low")
-      ) {
-        return parsed;
+      const parsed = JSON.parse(extractJsonObject(content)) as Record<string, unknown>;
+      const normalizedConfidence = normalizeConfidence(parsed.confidence);
+
+      if (typeof parsed.explanation === "string" && typeof parsed.action_rationale === "string" && normalizedConfidence) {
+        return {
+          explanation: parsed.explanation,
+          action_rationale: parsed.action_rationale,
+          confidence: normalizedConfidence
+        };
       }
     } catch (error) {
       if (attempt === 1) {
