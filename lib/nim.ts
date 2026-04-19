@@ -3,6 +3,7 @@ import { ExplanationResponse, Finding, StrategyResponse, SummaryMetrics, Confide
 
 const NIM_URL = "https://integrate.api.nvidia.com/v1/chat/completions";
 const DEFAULT_MODEL = "meta/llama-3.1-70b-instruct";
+const DEFAULT_TIMEOUT_MS = 12_000;
 
 function extractJsonObject(raw: string): string {
   const fenced = raw.match(/\`\`\`json([\s\S]*?)\`\`\`/i);
@@ -40,37 +41,69 @@ function normalizeNumber(value: unknown): number | null {
   return null;
 }
 
+function toStringArray(value: unknown, maxItems = 8): string[] | null {
+  if (!Array.isArray(value) || value.length === 0 || value.length > maxItems) return null;
+  const normalized: string[] = [];
+  for (const item of value) {
+    if (typeof item !== "string") return null;
+    const trimmed = item.trim();
+    if (!trimmed || trimmed.length > 240) return null;
+    normalized.push(trimmed);
+  }
+  return normalized;
+}
+
+function readTimeoutMs(): number {
+  const parsed = Number(process.env.NIM_TIMEOUT_MS);
+  if (Number.isFinite(parsed) && parsed >= 1_000 && parsed <= 60_000) return Math.floor(parsed);
+  return DEFAULT_TIMEOUT_MS;
+}
+
 async function callNim(messages: Array<{ role: "system" | "user"; content: string }>, maxTokens: number): Promise<string> {
   const apiKey = process.env.NVIDIA_NIM_API_KEY;
   if (!apiKey) {
     throw new Error("NVIDIA_NIM_API_KEY is not configured");
   }
 
-  const response = await fetch(NIM_URL, {
-    method: "POST",
-    headers: {
-      Authorization: "Bearer " + apiKey,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model: process.env.NVIDIA_NIM_MODEL || DEFAULT_MODEL,
-      temperature: 0.2,
-      max_tokens: maxTokens,
-      messages
-    }),
-    cache: "no-store"
-  });
+  const timeoutMs = readTimeoutMs();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort("nim_timeout"), timeoutMs);
 
-  if (!response.ok) {
-    throw new Error("NIM request failed with status " + String(response.status));
-  }
+  try {
+    const response = await fetch(NIM_URL, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer " + apiKey,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: process.env.NVIDIA_NIM_MODEL || DEFAULT_MODEL,
+        temperature: 0.2,
+        max_tokens: maxTokens,
+        messages
+      }),
+      cache: "no-store",
+      signal: controller.signal
+    });
 
-  const payload = await response.json();
-  const content = payload.choices?.[0]?.message?.content;
-  if (typeof content !== "string" || !content.trim()) {
-    throw new Error("NIM returned an empty response");
+    if (!response.ok) {
+      throw new Error("NIM request failed with status " + String(response.status));
+    }
+
+    const payload = await response.json();
+    const content = payload.choices?.[0]?.message?.content;
+    if (typeof content !== "string" || !content.trim()) {
+      throw new Error("NIM returned an empty response");
+    }
+    return content;
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error("NIM request timed out");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
   }
-  return content;
 }
 
 export async function runStrategyAgent(summary: SummaryMetrics, findings: Finding[]): Promise<StrategyResponse> {
@@ -98,7 +131,7 @@ export async function runStrategyAgent(summary: SummaryMetrics, findings: Findin
     "You are a careful finance operations assistant. Be concise, specific, and skeptical. Never invent vendor behavior, unsupported savings, or fake certainty. Return valid JSON only with keys summary, top_opportunities, recommended_actions, estimated_monthly_savings, estimated_annual_savings, confidence. Confidence must be high, medium, or low.";
 
   const retryPrompt =
-    "Return JSON only. No markdown. No prose before or after the object. Keys must exactly match the requested schema. Confidence must be one of high, medium, or low.";
+    "Return JSON only. No markdown. No prose before or after the object. Keys must exactly match the requested schema. top_opportunities and recommended_actions must be non-empty arrays of short strings. Confidence must be one of high, medium, or low.";
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
@@ -113,25 +146,29 @@ export async function runStrategyAgent(summary: SummaryMetrics, findings: Findin
       const normalizedConfidence = normalizeConfidence(parsed.confidence);
       const monthly = normalizeNumber(parsed.estimated_monthly_savings);
       const annual = normalizeNumber(parsed.estimated_annual_savings);
+      const topOpportunities = toStringArray(parsed.top_opportunities);
+      const recommendedActions = toStringArray(parsed.recommended_actions);
+      const summaryText = typeof parsed.summary === "string" ? parsed.summary.trim() : null;
 
       if (
-        typeof parsed.summary === "string" &&
-        Array.isArray(parsed.top_opportunities) &&
-        Array.isArray(parsed.recommended_actions) &&
+        summaryText &&
+        summaryText.length <= 1_200 &&
+        topOpportunities &&
+        recommendedActions &&
         monthly !== null &&
         annual !== null &&
         normalizedConfidence
       ) {
         return {
-          summary: parsed.summary,
-          top_opportunities: parsed.top_opportunities.filter((item): item is string => typeof item === "string"),
-          recommended_actions: parsed.recommended_actions.filter((item): item is string => typeof item === "string"),
+          summary: summaryText,
+          top_opportunities: topOpportunities,
+          recommended_actions: recommendedActions,
           estimated_monthly_savings: monthly,
           estimated_annual_savings: annual,
           confidence: normalizedConfidence
         };
       }
-    } catch (error) {
+    } catch {
       if (attempt === 1) {
         return fallback;
       }
@@ -146,7 +183,7 @@ export async function explainFindingWithNim(finding: Finding, summary: SummaryMe
   const systemPrompt =
     "You are a careful finance operations assistant. Explain one finding in plain business language. Do not overclaim autonomy. Return valid JSON only with keys explanation, action_rationale, confidence. Confidence must be high, medium, or low.";
   const retryPrompt =
-    "Return JSON only. No markdown. Confidence must be high, medium, or low.";
+    "Return JSON only. No markdown. explanation and action_rationale must be concise strings. Confidence must be high, medium, or low.";
 
   const userPayload = JSON.stringify(
     {
@@ -179,15 +216,23 @@ export async function explainFindingWithNim(finding: Finding, summary: SummaryMe
       );
       const parsed = JSON.parse(extractJsonObject(content)) as Record<string, unknown>;
       const normalizedConfidence = normalizeConfidence(parsed.confidence);
+      const explanation = typeof parsed.explanation === "string" ? parsed.explanation.trim() : null;
+      const actionRationale = typeof parsed.action_rationale === "string" ? parsed.action_rationale.trim() : null;
 
-      if (typeof parsed.explanation === "string" && typeof parsed.action_rationale === "string" && normalizedConfidence) {
+      if (
+        explanation &&
+        explanation.length <= 1_500 &&
+        actionRationale &&
+        actionRationale.length <= 1_500 &&
+        normalizedConfidence
+      ) {
         return {
-          explanation: parsed.explanation,
-          action_rationale: parsed.action_rationale,
+          explanation,
+          action_rationale: actionRationale,
           confidence: normalizedConfidence
         };
       }
-    } catch (error) {
+    } catch {
       if (attempt === 1) {
         return fallback;
       }
