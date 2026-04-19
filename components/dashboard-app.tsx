@@ -5,7 +5,7 @@ import { analyzeTransactions } from "@/lib/analysis";
 import { parseTransactionsCsv } from "@/lib/csv";
 import { buildLocusPlan } from "@/lib/locus";
 import { buildMarkdownReport } from "@/lib/report";
-import { AnalysisResult, ExplanationResponse, Finding, LocusPlan, StrategyResponse, Transaction } from "@/lib/types";
+import { AnalysisResult, ExplanationResponse, Finding, LocusPlan, LocusRuntimeStatus, StrategyResponse, Transaction } from "@/lib/types";
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat("en-US", {
@@ -32,6 +32,12 @@ function statusTone(status: "pending" | "simulated" | "complete"): string {
   if (status === "complete") return "text-emerald-700";
   if (status === "pending") return "text-sky-700";
   return "text-amber-700";
+}
+
+function locusModeTone(mode: "live" | "simulation"): string {
+  return mode === "live"
+    ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+    : "bg-amber-100 text-amber-700 border-amber-200";
 }
 
 function MetricCard(props: { label: string; value: string; detail: string; tone?: string }) {
@@ -120,9 +126,11 @@ export function DashboardApp() {
   const [strategy, setStrategy] = useState<StrategyResponse | null>(null);
   const [explanations, setExplanations] = useState<Record<string, ExplanationResponse>>({});
   const [selectedFindingId, setSelectedFindingId] = useState<string | null>(null);
+  const [locusRuntimeStatus, setLocusRuntimeStatus] = useState<LocusRuntimeStatus | null>(null);
+  const [isRefreshingLocus, setIsRefreshingLocus] = useState(false);
 
   const analysis: AnalysisResult | null = transactions.length > 0 ? analyzeTransactions(transactions) : null;
-  const locusPlan: LocusPlan | null = analysis ? buildLocusPlan(analysis.findings, analysis.summary) : null;
+  const locusPlan: LocusPlan | null = analysis ? buildLocusPlan(analysis.findings, analysis.summary, locusRuntimeStatus) : null;
   const selectedFinding = analysis?.findings.find((finding) => finding.id === selectedFindingId) || analysis?.findings[0] || null;
   const selectedExplanation = selectedFinding ? explanations[selectedFinding.id] || null : null;
 
@@ -152,6 +160,36 @@ export function DashboardApp() {
       setSelectedFindingId(analysis.findings[0].id);
     }
   }, [analysis, selectedFindingId]);
+
+  useEffect(() => {
+    void refreshLocusStatus();
+  }, []);
+
+  async function refreshLocusStatus() {
+    setIsRefreshingLocus(true);
+    try {
+      const response = await fetch("/api/locus/status", { cache: "no-store" });
+      if (!response.ok) {
+        setLocusRuntimeStatus({
+          connected: false,
+          mode: "simulation",
+          environment: "unknown",
+          balanceUsdc: null,
+          walletAddress: null,
+          wrappedApiCatalogReachable: false,
+          x402CatalogReachable: false,
+          appsMarkdownReachable: false,
+          message: "Unable to reach Locus status route. Running in simulation mode.",
+          lastCheckedAt: new Date().toISOString()
+        });
+        return;
+      }
+      const payload = (await response.json()) as LocusRuntimeStatus;
+      setLocusRuntimeStatus(payload);
+    } finally {
+      setIsRefreshingLocus(false);
+    }
+  }
 
   async function loadSampleData() {
     setIsLoadingSample(true);
@@ -265,6 +303,12 @@ export function DashboardApp() {
                 onClick={loadSampleData}
               >
                 {transactions.length > 0 ? "Reload sample" : "Load sample"}
+              </button>
+              <button
+                className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-white"
+                onClick={refreshLocusStatus}
+              >
+                {isRefreshingLocus ? "Refreshing Locus..." : "Refresh Locus"}
               </button>
               <button
                 className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-white"
@@ -495,7 +539,20 @@ export function DashboardApp() {
             <section className="grid gap-6 xl:grid-cols-3">
               <div className="surface rounded-[32px] p-6">
                 <div className="kicker">Locus Wallet</div>
-                <h3 className="mt-2 text-2xl font-semibold text-ink">Governed agent balance</h3>
+                <div className="mt-2 flex items-center gap-3">
+                  <h3 className="text-2xl font-semibold text-ink">Governed agent balance</h3>
+                  <span
+                    className={
+                      "rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] " +
+                      locusModeTone(locusRuntimeStatus?.mode || "simulation")
+                    }
+                  >
+                    {(locusRuntimeStatus?.mode || "simulation") === "live" ? "Live" : "Simulation"}
+                  </span>
+                </div>
+                <p className="mt-2 text-sm text-muted">
+                  {locusRuntimeStatus?.message || "Locus status not checked yet. Use Refresh Locus to verify live connectivity."}
+                </p>
                 <div className="mt-5 rounded-[26px] bg-slate-950 p-5 text-white">
                   <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-300">Available balance</div>
                   <div className="mt-2 text-4xl font-semibold">{formatCurrency(locusPlan.wallet.balanceUsdc)}</div>
@@ -557,7 +614,9 @@ export function DashboardApp() {
                   </div>
 
                   <div className="mt-4 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-                    Simulation mode: the payload and economics are prepared, but live Build with Locus credentials are not configured in this MVP deployment.
+                    {(locusRuntimeStatus?.mode || "simulation") === "live"
+                      ? "Live Locus key detected: this build is wallet-connected, and high-cost actions still stay in guarded/pending mode."
+                      : "Simulation mode: action payloads are prepared, but no live Locus key is available in this deployment."}
                   </div>
                 </div>
               </div>

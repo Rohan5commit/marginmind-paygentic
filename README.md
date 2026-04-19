@@ -55,11 +55,12 @@ Create a `.env.local` file:
 ```bash
 NVIDIA_NIM_API_KEY=your_nim_key
 NVIDIA_NIM_MODEL=meta/llama-3.1-70b-instruct
-LOCUS_API_KEY=optional_locus_key
+LOCUS_API_KEY=your_locus_key
+LOCUS_API_BASE=https://beta-api.paywithlocus.com/api
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
-Only `NVIDIA_NIM_API_KEY` is needed for the live AI summary flow. The app still works in demo mode without Locus keys.
+NVIDIA NIM and Locus can both run live. If `LOCUS_API_KEY` is missing, MarginMind automatically falls back to simulation mode for the Locus action layer.
 
 ### 3. Demo Flow
 
@@ -80,11 +81,12 @@ Only `NVIDIA_NIM_API_KEY` is needed for the live AI summary flow. The app still 
 3. Add the environment variables:
    - `NVIDIA_NIM_API_KEY`
    - `NVIDIA_NIM_MODEL` (optional override)
-   - `LOCUS_API_KEY` (optional, for future live Locus calls)
+   - `LOCUS_API_KEY`
+   - `LOCUS_API_BASE` (use `https://beta-api.paywithlocus.com/api` for Paygentic)
    - `NEXT_PUBLIC_APP_URL`
 4. Deploy.
 
-The app is designed to build even if Locus keys are absent. In that case, MarginMind runs the Locus layer in an explicitly labeled simulation mode for judges.
+The app is designed to build even if Locus keys are absent. In that case, MarginMind runs the Locus layer in an explicitly labeled simulation mode for judges. With a valid key, the dashboard uses live Locus wallet connectivity and capability checks.
 
 This repository also includes a GitHub Actions workflow at `.github/workflows/deploy-vercel.yml` so future pushes to `main` can redeploy the app to Vercel from GitHub.
 
@@ -108,7 +110,11 @@ MarginMind uses Locus as a central execution layer, not as a cosmetic add-on.
 - **Build with Locus**: the app shows how the agent can deploy a renewal-monitor service from GitHub as a wallet-funded machine-economy action.
 - **Audit logs**: every proposed action includes rationale, expected savings, estimated Locus spend, and status.
 
-Because no live Locus API key was provided for this build, wrapped API, task, and Build with Locus operations are implemented in a visibly labeled MVP simulation mode. The workflow and payload design follow Locus docs so the same surfaces can be wired to live credentials later.
+MarginMind now supports both modes:
+- Live mode with `LOCUS_API_KEY`: wallet balance and Locus capability checks are fetched in real time.
+- Simulation mode without key: action planning remains available for demo continuity.
+
+High-cost commercial actions still remain in guarded/pending mode in this MVP to avoid accidental spends during judging.
 
 ## Screenshots
 

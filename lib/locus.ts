@@ -1,4 +1,4 @@
-import { Finding, LocusPlan, SummaryMetrics, TaskProposal } from "@/lib/types";
+import { Finding, LocusPlan, LocusRuntimeStatus, SummaryMetrics, TaskProposal } from "@/lib/types";
 
 function roundCurrency(value: number): number {
   return Math.round(value * 100) / 100;
@@ -36,28 +36,34 @@ function buildTask(findings: Finding[], filterAction: Finding["recommendedAction
     .filter((task) => task.roiMultiple >= 4);
 }
 
-export function buildLocusPlan(findings: Finding[], summary: SummaryMetrics): LocusPlan {
+export function buildLocusPlan(
+  findings: Finding[],
+  summary: SummaryMetrics,
+  runtimeStatus?: LocusRuntimeStatus | null
+): LocusPlan {
   const negotiationTasks = buildTask(findings, "negotiate");
   const refundTasks = buildTask(findings, "request_refund");
   const topFinding = findings[0];
+  const liveConnected = runtimeStatus?.connected === true;
+  const walletBalance = liveConnected && runtimeStatus?.balanceUsdc !== null ? runtimeStatus.balanceUsdc : 125;
 
   return {
     wallet: {
-      balanceUsdc: 125,
+      balanceUsdc: walletBalance,
       allowanceUsdc: 150,
       approvalThresholdUsdc: 10,
       maxTransactionUsdc: 25,
-      mode: "simulation"
+      mode: liveConnected ? "live" : "simulation"
     },
     wrappedApiPlan: {
-      provider: "exa",
-      endpoint: "exa/search",
+      provider: "openai",
+      endpoint: "chat",
       purpose:
         topFinding?.recommendedAction === "replace"
           ? "Research cheaper alternatives for " + topFinding.merchant
           : "Validate pricing pressure and replacement options for the top finding",
       estimatedCostUsdc: 0.24,
-      status: "simulated"
+      status: liveConnected ? "ready" : "simulated"
     },
     taskProposals: [...refundTasks, ...negotiationTasks].slice(0, 3),
     buildPlan: {
@@ -68,7 +74,7 @@ export function buildLocusPlan(findings: Finding[], summary: SummaryMetrics): Lo
       estimatedCostUsdc: 1.4,
       projectedAnnualSavingsUsdc: Math.max(summary.monthlyWasteEstimate * 2, 900),
       healthcheckPath: "/health",
-      status: "simulated"
+      status: liveConnected ? "prepared" : "simulated"
     },
     auditLog: [
       {
@@ -80,24 +86,31 @@ export function buildLocusPlan(findings: Finding[], summary: SummaryMetrics): Lo
       },
       {
         id: "log-2",
-        timestamp: "T+00:03",
-        title: "Wrapped API research justified",
-        detail: "A low-cost research step was approved because the expected savings exceed the spend by a wide margin.",
-        status: "simulated"
+        timestamp: "T+00:02",
+        title: liveConnected ? "Live Locus wallet connected" : "Locus wallet running in simulation",
+        detail: runtimeStatus?.message || "Wallet checks completed.",
+        status: liveConnected ? "complete" : "simulated"
       },
       {
         id: "log-3",
-        timestamp: "T+00:05",
+        timestamp: "T+00:04",
+        title: "Wrapped API research justified",
+        detail: "A low-cost research step was approved because the expected savings exceed the spend by a wide margin.",
+        status: liveConnected ? "pending" : "simulated"
+      },
+      {
+        id: "log-4",
+        timestamp: "T+00:06",
         title: "Task escalation evaluated",
         detail: "Human escalation was only proposed where expected savings clear the task-cost hurdle.",
         status: "simulated"
       },
       {
-        id: "log-4",
+        id: "log-5",
         timestamp: "T+00:07",
         title: "Build with Locus deployment drafted",
         detail: "A GitHub-backed renewal monitor service was prepared with a health check and projected annual savings.",
-        status: "simulated"
+        status: liveConnected ? "pending" : "simulated"
       }
     ]
   };

@@ -13,15 +13,15 @@ MarginMind models every agent action as a wallet-funded operation with explicit 
 - vendor allowlist
 - auditable justification
 
-That design follows Locus documentation for governed agent spending and keeps the product grounded in the machine-economy framing rather than generic SaaS analytics.
+This keeps the product grounded in machine-economy execution rather than passive analytics.
 
 ## Wrapped APIs In The Design
 
 Wrapped APIs fit MarginMind in two places:
 - vendor and alternative research
-- policy-aware lightweight enrichment before spending more on a task or deployment
+- policy-aware enrichment before escalating to human tasks
 
-The app shows wrapped API actions as pay-per-use decisions funded from the Locus wallet. This matters because a savings agent should not require yet another monthly subscription to do research.
+The app treats these as pay-per-use decisions funded from the Locus wallet, avoiding another recurring SaaS subscription just to do research.
 
 ## Locus Tasks In The Design
 
@@ -38,45 +38,35 @@ MarginMind uses Locus Tasks selection logic based on:
 - estimated savings
 - expected ROI
 
-The app only escalates when the expected upside meaningfully exceeds the task spend.
+The app only escalates when expected upside meaningfully exceeds task spend.
 
 ## Build With Locus In The Design
 
-Build with Locus is used as the machine-economy deployment layer for always-on monitoring. In MarginMind, the Action Agent can propose deploying a lightweight renewal monitor from GitHub so the user keeps catching waste after the initial review.
+Build with Locus is used as the machine-economy deployment layer for always-on monitoring. MarginMind can propose a GitHub-backed renewal monitor service so users keep catching waste after the initial review.
 
-This is important for Week 2 because it shows a full loop:
-- detect waste
-- decide an action
-- fund the action
-- deploy supporting automation from GitHub
+## What Is Live Now
 
-## What Is Real In This MVP
+### Live
+- Locus wallet connectivity check via `GET /api/pay/balance`
+- environment-aware Locus mode (beta or production)
+- x402 catalog reachability check via `GET /api/x402/endpoints/md`
+- apps catalog reachability check via `GET /api/apps/md`
+- wrapped API catalog reachability check via `/wapi/index.md`
+- real-time status rendered in the dashboard and carried into the action plan
 
-### Real
-- GitHub-hosted Next.js application
-- deployable Vercel build
-- NVIDIA NIM integration for structured reasoning
-- Locus-native wallet, task, wrapped API, and Build with Locus planning surfaces
-- transparent action logs and ROI logic
+### Simulated (guarded in MVP)
+- direct Locus Tasks submission
+- direct Build with Locus deployment creation
+- live wrapped API spend execution from UI buttons
 
-### Simulated
-- direct Locus task submission
-- live Build with Locus deployment creation
-- live wrapped API spending from a Locus wallet
-
-These are simulated because no Locus API key was provided for this build.
-
-### Future-expandable
-The Locus surfaces are intentionally shaped so they can be wired to live credentials later:
-- wrapped API discovery and provider calls
-- task creation and polling
-- Build with Locus project, environment, service, and deployment APIs
+These remain intentionally guarded to prevent accidental spending during demos while still showing end-to-end payload and ROI logic.
 
 ## Source Basis
 
-The product design follows current Locus documentation for:
-- single USDC wallet model
-- approval-threshold and allowance guardrails
-- wrapped API authentication and approval flow
-- task category, timeline, and price tier workflow
-- Build with Locus GitHub deployment and health-check model
+The integration design follows current Locus docs and skill references for:
+- API base/environment mapping
+- wallet balance/auth checks
+- wrapped API endpoint structure
+- x402 catalog discovery
+- app catalog discovery
+- policy guardrails and approval thresholds

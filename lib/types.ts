@@ -94,7 +94,21 @@ export type WalletState = {
   allowanceUsdc: number;
   approvalThresholdUsdc: number;
   maxTransactionUsdc: number;
-  mode: "simulation" | "live-ready";
+  mode: "simulation" | "live";
+};
+
+
+export type LocusRuntimeStatus = {
+  connected: boolean;
+  mode: "live" | "simulation";
+  environment: "beta" | "production" | "stage" | "unknown";
+  balanceUsdc: number | null;
+  walletAddress: string | null;
+  wrappedApiCatalogReachable: boolean;
+  x402CatalogReachable: boolean;
+  appsMarkdownReachable: boolean;
+  message: string;
+  lastCheckedAt: string;
 };
 
 export type TaskProposal = {
