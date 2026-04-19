@@ -48,18 +48,19 @@ Build with Locus is used as the machine-economy deployment layer for always-on m
 
 ### Live
 - Locus wallet connectivity check via `GET /api/pay/balance`
-- environment-aware Locus mode (beta or production)
+- environment-aware Locus mode (beta, stage, or production)
 - x402 catalog reachability check via `GET /api/x402/endpoints/md`
-- apps catalog reachability check via `GET /api/apps/md`
+- apps catalog fetch via `GET /api/apps/md` with Build/Hire app availability detection
 - wrapped API catalog reachability check via `/wapi/index.md`
 - real-time status rendered in the dashboard and carried into the action plan
+- public status route now redacts sensitive wallet details by default
 
 ### Simulated (guarded in MVP)
 - direct Locus Tasks submission
 - direct Build with Locus deployment creation
 - live wrapped API spend execution from UI buttons
 
-These remain intentionally guarded to prevent accidental spending during demos while still showing end-to-end payload and ROI logic.
+These remain intentionally guarded to prevent accidental spending during demos while still showing end-to-end payload and ROI logic. BuildWithLocus currently has discovery through the apps catalog in this MVP; write/deploy execution will be switched on as soon as public app write endpoints are documented.
 
 ## Source Basis
 
