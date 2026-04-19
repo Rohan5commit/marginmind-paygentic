@@ -15,7 +15,7 @@ MarginMind is built for that exact gap:
 ## Features
 
 - CSV upload plus one-click demo data
-- recurring charge detection and merchant normalization
+- recurring charge detection with strict CSV validation and merchant-name normalization
 - duplicate-tool detection across analytics, design, collaboration, and infra spend
 - underused subscription, refund-window, pricing outlier, rising-cost, and negotiation detection
 - six clearly labeled agents:
@@ -116,13 +116,12 @@ MarginMind now supports both modes:
 
 High-cost commercial actions still remain in guarded/pending mode in this MVP to avoid accidental spends during judging.
 
-## Screenshots
+## Screenshots / Demo Assets
 
-Add these after deployment:
-- dashboard overview
-- opportunity detail drawer
-- Locus action center
-- report export preview
+- Live app: https://marginmind-paygentic.vercel.app
+- Demo walkthrough: [DEMO_SCRIPT.md](DEMO_SCRIPT.md)
+- Business framing: [BUSINESS_PLAN.md](BUSINESS_PLAN.md)
+- Judges can follow the script live in-app with zero setup beyond opening the URL.
 
 ## Why This Fits Paygentic Week 2
 
@@ -148,7 +147,7 @@ MarginMind matches the brief directly:
 
 - live Locus wrapped API execution with provider-level approvals
 - live Locus task submission and task status polling
-- live Build with Locus deployment for always-on renewal monitoring
+- live Build with Locus deployment execution once public Build app write endpoints are available
 - Gmail or email agent connectors for refund and negotiation outreach
 - spend anomaly detection over linked bank, card, and billing feeds
 - policy-aware autonomous approvals based on confidence and ROI
