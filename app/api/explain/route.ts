@@ -1,22 +1,39 @@
 import { explainFindingWithNim } from "@/lib/nim";
-import { Finding, SummaryMetrics } from "@/lib/types";
+import { enforcePayloadSize, enforceRateLimit } from "@/lib/security";
+import { validateExplainPayload } from "@/lib/validation";
 
 export async function POST(request: Request) {
-  try {
-    const payload = (await request.json()) as {
-      summary: SummaryMetrics;
-      finding: Finding;
-    };
+  const payloadSizeError = enforcePayloadSize(request);
+  if (payloadSizeError) return payloadSizeError;
 
-    const explanation = await explainFindingWithNim(payload.finding, payload.summary);
-    return Response.json(explanation);
-  } catch (error) {
+  const rateLimitError = enforceRateLimit(request, "explain");
+  if (rateLimitError) return rateLimitError;
+
+  let validatedPayload: ReturnType<typeof validateExplainPayload> = null;
+  try {
+    const rawPayload = await request.json();
+    validatedPayload = validateExplainPayload(rawPayload);
+  } catch {
     return Response.json(
-      {
-        error: "explain_failed",
-        message: error instanceof Error ? error.message : "Unknown explanation failure"
-      },
-      { status: 500 }
+      { error: "invalid_json", message: "Request body must be valid JSON." },
+      { status: 400 }
+    );
+  }
+
+  if (!validatedPayload) {
+    return Response.json(
+      { error: "invalid_request", message: "Malformed explanation payload." },
+      { status: 400 }
+    );
+  }
+
+  try {
+    const explanation = await explainFindingWithNim(validatedPayload.finding, validatedPayload.summary);
+    return Response.json(explanation);
+  } catch {
+    return Response.json(
+      { error: "explain_failed", message: "Unable to generate explanation right now." },
+      { status: 502 }
     );
   }
 }
