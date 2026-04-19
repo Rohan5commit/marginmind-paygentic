@@ -107,6 +107,8 @@ export type LocusRuntimeStatus = {
   wrappedApiCatalogReachable: boolean;
   x402CatalogReachable: boolean;
   appsMarkdownReachable: boolean;
+  buildWithLocusAvailable: boolean;
+  hireWithLocusAvailable: boolean;
   message: string;
   lastCheckedAt: string;
 };
