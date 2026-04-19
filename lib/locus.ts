@@ -8,9 +8,10 @@ function buildTask(findings: Finding[], filterAction: Finding["recommendedAction
   return findings
     .filter((finding) => finding.recommendedAction === filterAction)
     .slice(0, 2)
-    .map((finding, index) => {
-      const timeline = filterAction === "request_refund" ? "1 day" : "3 days";
-      const priceTier = finding.estimatedAnnualSavings >= 1500 || finding.estimatedOneTimeRecovery >= 300 ? 2 : 1;
+    .map((finding) => {
+      const timeline: TaskProposal["timeline"] = filterAction === "request_refund" ? "1 day" : "3 days";
+      const priceTier: TaskProposal["priceTier"] =
+        finding.estimatedAnnualSavings >= 1500 || finding.estimatedOneTimeRecovery >= 300 ? 2 : 1;
       const estimatedTaskCostUsdc = priceTier === 2 ? 14 : 8;
       const expectedSavingsUsdc =
         finding.estimatedOneTimeRecovery > 0 ? finding.estimatedOneTimeRecovery : finding.estimatedAnnualSavings;
